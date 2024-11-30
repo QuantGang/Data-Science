@@ -1,0 +1,1081 @@
+---
+title: "Machine Learning: Mathematical Theory and Applications"
+subtitle: ""
+author: 
+  - Sebastian Galeano
+date: last-modified
+format: 
+  html:
+    self-contained: true
+toc: true
+execute:
+  error: false
+theme: Default
+title-block-banner-color: Primary
+editor: visual
+---
+
+```{=html}
+<style>
+.boxed-text {
+  border: 2px solid black;
+  padding: 10px;
+  margin: 10px 0;
+}
+</style>
+```
+```{r setup, include=FALSE}
+# Set global chunk options
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+## 1. Polynomial regression for bike rental data
+
+#### 👾 Problem 1.1
+
+::: boxed-text
+Fit a polynomial of order 8 using least squares, without using R functions such as `lm()`. Plot the training data, test data and the fitted polynomial in the same plot.
+:::
+
+The following code obtains the data, then uses the logarithm of the amount of times that people used bikes and divides by 23 the hours when they take the bikes to normalize the hours between the \[0,1\] interval:
+
+```{r}
+rm(list=ls()) # Remove variables 
+cat("\014") # Clean workspace
+bike_data <- read.csv('/Users/quant/Desktop/Data Science/Primer semestre/Machine Learning - Spring 2024/Computer Lab 1/bike_rental_hourly.csv')
+bike_data$log_cnt <- log(bike_data$cnt)
+bike_data$hour <- bike_data$hr/23
+```
+
+The following code estimates the model (a polynomial of order 8) using least squares. Moreover, the code plots the training data, test data and the fitted polynomial in the same plot:
+
+```{r}
+bike_data_train <- bike_data[bike_data$dteday >= as.Date("2011-02-01") & bike_data$dteday <=  as.Date("2011-03-31"), ]
+bike_data_test <- bike_data[bike_data$dteday >= as.Date("2011-04-01") & bike_data$dteday <=  as.Date("2011-05-31"), ]
+y_train <- bike_data_train$log_cnt
+y_test <- bike_data_test$log_cnt
+p <- 8 # Order of polynomial
+
+# Design matrix / matrix of features (including intercept), the function generates raw (not orthogonal) polynomial terms and is returned as a simple matrix
+X_train <- cbind(1, poly(bike_data_train$hour, p, raw = TRUE, simple = TRUE))
+
+# Obtaining beta_hat using the OLS formula
+beta_hat <- solve(t(X_train)%*%X_train)%*%t(X_train)%*%y_train
+
+# Predict in-sample
+y_hat_train <- X_train%*%beta_hat
+
+# Design matrix / matrix of features (including intercept)
+X_test <- cbind(1, poly(bike_data_test$hour, p, raw = TRUE, simple = TRUE))
+
+# Predict out-of-sample
+y_hat_test <- X_test%*%beta_hat
+
+# Plot training data, test data, and fit on a fine grid.
+plot(log_cnt ~ hour, data = bike_data_train, col = "cornflowerblue", ylim = c(0, 8),main = "Training data, test data, and fitted polynomial of 8-th degree", cex.main = 0.75, xlab = "Hours", ylab = "Log_cnt")
+lines(bike_data_test$hour, bike_data_test$log_cnt, type = "p", col = "lightcoral")
+hours_grid <- seq(0, 1, length.out = 1000)
+X_grid <- cbind(1, poly(hours_grid, p, raw = TRUE, simple = TRUE))
+y_hat_grid <- X_grid %*% beta_hat
+lines(hours_grid, y_hat_grid, lty = 1, col = "lightcoral")
+legend(x = "topleft", pch = c(1, 1, NA), lty = c(NA, NA, 1), col = c("cornflowerblue", "lightcoral", "lightcoral"), legend = c("Train", "Test", "Fitted curve"), cex = 0.6)
+```
+
+#### 👾 Problem 1.2
+
+::: boxed-text
+Fit polynomials of varying order 1-10 using least squares, without using R functions such as `lm()`. Compute the RMSEs for the training and test data and plot them on the same figure as a function of the polynomial order. Are you underfitting or overfitting the data?
+:::
+
+The following code is a loop that changes the order of the polynomial from 1 to 10 and computes and stores the RMSE for each polynomial degree:
+
+```{r}
+# Vectors to store RMSEs
+rmse_train <- numeric(10)
+rmse_test <- numeric(10)
+
+# Loop over polynomial degrees from 1 to 10
+for (p in 1:10) 
+  {# Design matrix / matrix of features (including intercept)
+  X_train_loop <- cbind(1, poly(bike_data_train$hour, p, raw = TRUE, simple = TRUE))
+  
+  # Calculate beta_hat using the OLS formula
+  beta_hat_loop <- solve(t(X_train_loop) %*% X_train_loop) %*% t(X_train_loop) %*% y_train
+  
+  # Predict in-sample
+  y_hat_train_loop <- X_train_loop %*% beta_hat_loop
+  
+  # Calculate RMSE for training data
+  rmse_train[p] <- sqrt(sum((y_train - y_hat_train_loop)^2) / length(y_train))
+  
+  # Design matrix / matrix of features (including intercept)
+  X_test_loop <- cbind(1, poly(bike_data_test$hour, p, raw = TRUE, simple = TRUE))
+  
+  # Predict out-of-sample
+  y_hat_test_loop <- X_test_loop %*% beta_hat_loop
+  
+  # Calculate RMSE for test data
+  rmse_test[p] <- sqrt(sum((y_test - y_hat_test_loop)^2) / length(y_test))}
+
+# Print the first six RMSE's for each polynomial degree
+head(data.frame(Polynomial_Degree = 1:10, RMSE_Train = rmse_train, RMSE_Test = rmse_test))
+```
+
+Now let's plot it!
+
+```{r}
+# Plot 
+plot(1:10, rmse_train, type = "b", col = "cornflowerblue", pch = 1, lty = 5, ylim = range(c(rmse_train, rmse_test)),xlab = "Polynomial Degree", ylab = "RMSE", main = "RMSE vs. Polynomial Degree", cex.main = 0.75)
+
+# Add the test RMSE to the plot
+lines(1:10, rmse_test, type = "b", col = "lightcoral", pch = 1, lty = 5)
+
+# Legend
+legend("topright", legend = c("Train", "Test"), col = c("cornflowerblue", "lightcoral"), pch = 1, lty = 5)
+```
+
+When looking at the RMSE chart created above, as the polynomial degree increases, the training error decreases steadily, indicating that the model is fitting the training data well.
+
+#### 👾 Problem 1.3
+
+::: boxed-text
+Polynomials are global functions and their fit may be sensitive to outliers. Local fitting methods can sometimes be more robust. One such method is the loess method, which is a nonparametric method that fits locally weighted regressions to subsets of points and subsequently combines them to obtain a global fit. Use the loess function in R with the standard settings to fit a locally weighted regression to the training data. Is this method better than that in Problem 1.1? Plot the training data, test data and both fitted curves in the same plot.
+:::
+
+The following code fits a locally weighted regression to the data and plots the training data, test data and both fitted curves:
+
+```{r}
+# Fit a LOESS model to the training data
+loess_model <- loess(log_cnt ~ hour, data = bike_data_train)
+
+# Predict using LOESS
+y_hat_train_loess <- predict(loess_model, newdata = bike_data_train$hour) 
+y_hat_test_loess <- predict(loess_model, newdata = bike_data_test$hour)
+y_hat_grid_loess <- predict(loess_model, newdata = data.frame(hour = hours_grid))
+
+# Plot
+plot(log_cnt ~ hour, data = bike_data_train, col = "cornflowerblue", ylim = c(0, 8), main = "Training data, test data, and fitted curves (Polynomial & LOESS)", 
+     cex.main = 0.75, xlab = "Hours", ylab = "Log_cnt")
+lines(bike_data_test$hour, bike_data_test$log_cnt, type = "p", col = "lightcoral")
+
+# Polynomial fit
+lines(hours_grid, y_hat_grid, lty = 1, col = "lightcoral")
+
+# LOESS fit
+lines(hours_grid, y_hat_grid_loess, lty = 2, col = "darkgreen")
+
+# Legend
+legend(x = "topleft", pch = c(1, 1, NA, NA), lty = c(NA, NA, 1, 2), 
+       col = c("cornflowerblue", "lightcoral", "lightcoral", "darkgreen"), 
+       legend = c("Train", "Test", "Polynomial Fit", "LOESS Fit"), cex = 0.6)
+```
+
+We can calculate the RMSE for each method to know which one performs better in the test data:
+
+```{r}
+# Calculate RMSE for test data using least squares
+rmse_test_poly <- sqrt(mean((y_test - y_hat_test)^2))
+print(paste("The RMSE for the test data using polynomial of order 8 and least squares:", rmse_test_poly))
+
+# Calculate RMSE for test data using LOESS
+rmse_test_LOESS <- sqrt(mean((y_test - y_hat_test_loess)^2))
+print(paste("The RMSE for the test data using LOESS:", rmse_test_LOESS))
+```
+
+The polynomial of order 8 has a lower RMSE in the test data than LOESS, but as seen in the chart, it overfits the data.
+
+## 2. Regularised spline regression for bike rental data
+
+#### 👾 Problem 2.1
+
+::: boxed-text
+Fit a spline regression to the training data with an L2 regularisation using a suitable value of $\lambda$, without using R functions such as glmnet(). Plot the fit together with the training and test data.
+:::
+
+The following code fits a spline regression to the training data with a Ridge regularisation using a suitable value of $\lambda$ that minimizes the RMSE on the test data. Moreover, the code plots the fit together with the training and test data:
+
+```{r}
+# Library
+suppressMessages(library(splines))
+
+# Equally spaced knots
+knots <- seq(0.05, 0.95, length.out = 25)
+
+# Design matrices / matrices of features (including intercept)
+X_train <- ns(bike_data_train$hour, knots = knots, intercept = TRUE)
+X_test <- ns(bike_data_test$hour, knots = knots, intercept = TRUE)
+X_grid <- ns(hours_grid, knots = knots, intercept = TRUE)
+beta_hat <- solve(t(X_train)%*%X_train)%*%t(X_train)%*%y_train
+
+# y_hat grid
+y_hat_spline_grid <- X_grid%*%beta_hat
+
+# Lambda grid
+lambda_grid <- seq(0, 1, length.out=100)
+
+# To store RMSE and beta values
+rmse_list <- numeric(length(lambda_grid))
+beta_list <- list()
+
+# Ridge Regression for each lambda
+for (i in seq_along(lambda_grid)) 
+  {lambda <- lambda_grid[i]
+  
+  # Ridge estimator
+  Ridge_betas <- solve(t(X_train) %*% X_train + lambda * diag(ncol(X_train))) %*%                  t(X_train) %*% y_train
+  
+  # Store the betas
+  beta_list[[i]] <- Ridge_betas
+  
+  # Predictions on test data
+  y_pred <- X_test %*% Ridge_betas
+  
+  # RMSE on test data
+  rmse_list[i] <- sqrt(mean((y_pred - y_test)^2))}
+
+# Optimal lambda
+optimal_lambda <- lambda_grid[which.min(rmse_list)]
+print(paste("The optimal lambda is:", optimal_lambda))
+optimal_beta <- beta_list[[which.min(rmse_list)]]
+
+# Plot the training data, test data, and spline fits
+plot(log_cnt ~ hour, data = bike_data_train, col = "cornflowerblue", ylim = c(0, 8), main = "Training Data, Test Data, and Spline Fits (Original & Regularized)", cex.main = 0.75, xlab = "Hours", ylab = "Log_cnt")
+lines(bike_data_test$hour, bike_data_test$log_cnt, type = "p", col = "lightcoral")
+
+# Original spline fit
+lines(hours_grid, y_hat_spline_grid, lty = 1, col = "lightcoral")
+
+# Regularized spline fit with optimal lambda
+y_hat_spline_grid_reg <- X_grid %*% optimal_beta
+lines(hours_grid, y_hat_spline_grid_reg, lty = 2, col = "darkgreen")
+
+# Legend
+legend(x = "topleft", pch = c(1, 1, NA, NA), lty = c(NA, NA, 1, 2), 
+       col = c("cornflowerblue", "lightcoral", "lightcoral", "darkgreen"),legend = c("Train", "Test", "Original Spline Fit", "Regularized Spline Fit"), cex = 0.6)
+```
+
+#### 👾 Problem 2.2
+
+::: boxed-text
+Use the package glmnet to fit a spline regression with an L2 regularisation using the same basis functions as the previous problem. Find the optimal $\lambda$ by applying the one-standard deviation rule when cross-validating the training data using 10 folds. Compute the RMSE (using the optimal $\lambda$) for the training and test data. Plot the fit together with the training and test data.
+:::
+
+The following code fits a spline regression with a Ridge regularisation using glmnet. It finds the optimal $\lambda$ by applying the one-standard deviation rule when cross-validating the training data using 10 folds. Moreover, the code computes the RMSE (using the optimal $\lambda$) for the training and test data and plots the fit together with the training and test data:
+
+```{r}
+suppressMessages(library(glmnet)) # Library
+set.seed(123)  # For reproducibility
+# Using glmnet, for Ridge regression (Ridge, alpha = 0), the dataset is randomly divided into 10 equal parts
+cv_fit <- cv.glmnet(X_train, y_train, alpha = 0, nfolds = 10)
+
+# Find the optimal lambda using the one-standard deviation rule
+optimal_lambda_new <- cv_fit$lambda.1se
+
+# Predict
+y_train_pred <- predict(cv_fit, newx = X_train, s = optimal_lambda_new)
+y_test_pred <- predict(cv_fit, newx = X_test, s = optimal_lambda_new)
+
+# Store RMSE's
+rmse_train <- sqrt(mean((y_train_pred - y_train)^2))
+rmse_test <- sqrt(mean((y_test_pred - y_test)^2))
+
+# Print lambda and RMSE's values
+print(paste("The optimal lambda using glmnet applying the one-standard deviation rule when cross-validating is:", optimal_lambda_new))
+print(paste("The RMSE on Training Data is:", rmse_train))
+print(paste("The RMSE on Test Data is:", rmse_test))
+
+# Plot
+plot(log_cnt ~ hour, data = bike_data_train, col = "cornflowerblue", ylim = c(0, 8), main = "Spline Regression with L2 Regularisation (GLMNET)", 
+     cex.main = 0.75, xlab = "Hours", ylab = "Log_cnt")
+lines(bike_data_test$hour, bike_data_test$log_cnt, type = "p", col = "lightcoral")
+
+# Predict on grid using optimal lambda
+y_grid_pred <- predict(cv_fit, newx = X_grid, s = optimal_lambda_new)
+
+# Spline fit line
+lines(hours_grid, y_grid_pred, lty = 1, col = "darkgreen")
+
+# Legend
+legend(x = "topleft", pch = c(1, 1, NA), lty = c(NA, NA, 1), 
+       col = c("cornflowerblue", "lightcoral", "darkgreen"), 
+       legend = c("Train", "Test", "Regularized Spline Fit"), cex = 0.6)
+```
+
+#### 👾 Problem 2.3
+
+::: boxed-text
+Repeat Problem 2.2, however, use the optimal $\lambda$ that minimises the mean cross-validated error. Compare the RMSE for the training and test data to those in Problem 2.2.
+:::
+
+The following code fits a spline regression with a Ridge regularisation using glmnet. It finds the optimal $\lambda$ that minimises the mean cross-validated error and computes the RMSE for the training and test data of problem 2.3 in order to compare against problem 2.2:
+
+```{r}
+# Ridge regression using cross-validation (Ridge, alpha = 0)
+cv_fit <- cv.glmnet(X_train, y_train, alpha = 0, nfolds = 10)
+
+# Find the optimal lambda that minimizes the mean cross-validated error
+optimal_lambda_min <- cv_fit$lambda.min
+
+# Predict
+y_train_pred_min <- predict(cv_fit, newx = X_train, s = optimal_lambda_min)
+y_test_pred_min <- predict(cv_fit, newx = X_test, s = optimal_lambda_min)
+
+# Calculate RMSE's
+rmse_train_min <- sqrt(mean((y_train_pred_min - y_train)^2))
+rmse_test_min <- sqrt(mean((y_test_pred_min - y_test)^2))
+
+# Print RMSE values for lambda.min
+print(paste("The RMSE on Training Data (lambda.min - Problem 2.3):", rmse_train_min))
+print(paste("The RMSE on Test Data (lambda.min - Problem 2.3):", rmse_test_min))
+
+# Compare with the previous RMSE values from lambda.1se
+print(paste("The RMSE on Training Data (lambda.1se - Problem 2.2):", rmse_train))
+print(paste("The RMSE on Test Data (lambda.1se - Problem 2.2):", rmse_test))
+
+# Plot the results using lambda.min
+plot(log_cnt ~ hour, data = bike_data_train, col = "cornflowerblue", ylim = c(0, 8), 
+     main = "Spline Regression with L2 Regularisation (GLMNET)", 
+     cex.main = 0.75, xlab = "Hours", ylab = "Log_cnt")
+lines(bike_data_test$hour, bike_data_test$log_cnt, type = "p", col = "lightcoral")
+
+# Predict on grid using optimal lambda.min
+y_grid_pred_min <- predict(cv_fit, newx = X_grid, s = optimal_lambda_min)
+
+# Add spline fit line using lambda.min
+lines(hours_grid, y_grid_pred_min, lty = 1, col = "darkgreen")
+
+# Add a legend
+legend(x = "topleft", pch = c(1, 1, NA), lty = c(NA, NA, 1), 
+       col = c("cornflowerblue", "lightcoral", "darkgreen"), 
+       legend = c("Train", "Test", "Regularized Spline Fit"), cex = 0.6)
+
+```
+
+The RMSE is lower in-sample when using the optimal $\lambda$ that minimises the mean cross-validated error in comparison to the $\lambda$ that is obtained using the one-standard deviation rule. The RMSE is higher out of sample when using the optimal $\lambda$ that minimises the mean cross-validated error in comparison to the $\lambda$ that minimises the mean cross-validated error. This happens because the one-standard-deviation rule tends to favor a model with better generalization performance at the cost of a slightly higher training error, whereas the $\lambda$ that minimizes the mean cross-validated error might give better in-sample performance but can overfit and perform worse on out-of-sample data.
+
+#### 👾 Problem 2.4
+
+::: boxed-text
+Repeat Problem 2.2 using L1 regularisation. Compare the RMSE for the training and test data to those in Problem 2.2.
+:::
+
+The following code fits a spline regression with a Lasso regularisation using glmnet. It finds the optimal $\lambda$ by applying the one-standard deviation rule when cross-validating the training data using 10 folds. Moreover, the code computes the RMSE (using the optimal $\lambda$) for the training and test data in order to compare against problem 2.2, and plots the fit together with the training and test data:
+
+```{r}
+
+# Fit the model with 10-fold cross-validation (Lasso, alpha = 1)
+cv_fit_lasso <- cv.glmnet(X_train, y_train, alpha = 1, nfolds = 10)
+
+# One-standard deviation rule to select lambda
+optimal_lambda_lasso <- cv_fit_lasso$lambda.1se
+
+# Predict
+y_train_pred_lasso <- predict(cv_fit_lasso, newx = X_train, s = optimal_lambda_lasso)
+y_test_pred_lasso <- predict(cv_fit_lasso, newx = X_test, s = optimal_lambda_lasso)
+
+# Calculate RMSE's for training and test data
+rmse_train_lasso <- sqrt(mean((y_train_pred_lasso - y_train)^2))
+rmse_test_lasso <- sqrt(mean((y_test_pred_lasso - y_test)^2))
+
+# Print RMSE's values for Lasso
+print(paste("The RMSE on Train Data using LASSO (Problem 2.4):", rmse_train_lasso))
+print(paste("The RMSE on Test Data using LASSO (Problem 2.4):", rmse_test_lasso))
+
+# Compare with Ridge RMSE's values
+print(paste("The RMSE on Train Data using RIDGE (Problem 2.2):", rmse_train))
+print(paste("The RMSE on Test Data using RIDGE (Problem 2.2):", rmse_test))
+
+# Plot 
+plot(log_cnt ~ hour, data = bike_data_train, col = "cornflowerblue", ylim = c(0, 8), main = "Spline Regression with L1 Regularisation (GLMNET)", 
+     cex.main = 0.75, xlab = "Hours", ylab = "Log_cnt")
+lines(bike_data_test$hour, bike_data_test$log_cnt, type = "p", col = "lightcoral")
+
+# Curve for the optimal lambda using Lasso
+y_hat_spline_grid_lasso <- predict(cv_fit_lasso, newx = X_grid, s = optimal_lambda_lasso)
+lines(hours_grid, y_hat_spline_grid_lasso, lty = 1, col = "darkgreen")
+
+# Legend
+legend(x = "topleft", pch = c(1, 1, NA), lty = c(NA, NA, 1), 
+       col = c("cornflowerblue", "lightcoral", "darkgreen"), 
+       legend = c("Train", "Test", "Regularized Spline Fit"), 
+       cex = 0.6)
+```
+
+The RMSE is lower in-sample when using Lasso in comparison to when we use Ridge. The RMSE is lower out-sample when using Ridge in comparison to when we use Lasso. This happens because of Lasso’s feature selection that can lead to an overly simplified model if the excluded variables are indeed relevant, which harm its out-of-sample performance in comparison to Ridge’s approach of shrinking all coefficients, avoiding this pitfall, ensuring that the model retains all relevant information, which results in better performance on out-sample data.
+
+## 3. Regularised regression for bike rental data with more features and data
+
+#### 👾 Problem 3.1
+
+::: boxed-text
+Fit a spline regression to the training data with an L1 regularisation. Find the optimal $\lambda$ by applying the one-standard deviation rule when cross-validating the training data using 10 folds. Compute the RMSE (using the optimal $\lambda$) for the training and test data. For the spline, use the `splines` package in R to create natural cubic splines basis functions of the variable `hour` with 10 degrees of freedom, i.e. use the `ns()` function with df=10 as input argument. Moreover, set `intercept=FALSE` and add it manually to your design matrix instead.
+
+The following variables should be included in the regression:
+
+-   Response variable: `log_cnt`.
+
+-   Features: `hour` (via the cubic spline described above), `yr`, `holiday`, `workingday`, `temp`, `atemp`, `hum`, `windspeed`, and all the dummy variables.
+:::
+
+The following code creates the dummy variables, then it uses the new period of time to split the data between train and test data. Furthermore, the code uses the `splines` package in R to create natural cubic splines basis functions of the variable `hour` with 10 degrees of freedom, for the train and test data, setting the argument `intercept=FALSE`, adding manually the intercept column to the design matrix and using the same number of knots for both datasets. Finally the model is penalized using a Lasso regularisation. Moreover, the code finds the optimal $\lambda$ by applying the one-standard deviation rule when cross-validating the training data and prints the RMSE of the out-sample and in-sample datasets:
+
+```{r}
+# One hot for weathersit
+one_hot_encode_weathersit <- model.matrix(~ as.factor(weathersit) - 1,data = bike_data)
+one_hot_encode_weathersit  <- one_hot_encode_weathersit[, -1] # Remove reference category
+colnames(one_hot_encode_weathersit) <- c('cloudy', 'light rain', 'heavy rain')
+bike_data <- cbind(bike_data, one_hot_encode_weathersit)
+
+# One hot for weekday
+one_hot_encode_weekday <- model.matrix(~ as.factor(weekday) - 1,data = bike_data)
+one_hot_encode_weekday  <- one_hot_encode_weekday[, -1] # Remove reference category
+colnames(one_hot_encode_weekday) <- c('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat')
+bike_data <- cbind(bike_data, one_hot_encode_weekday)
+
+# One hot for season
+one_hot_encode_season <- model.matrix(~ as.factor(season) - 1,data = bike_data)
+one_hot_encode_season  <- one_hot_encode_season[, -1] # Remove reference category
+colnames(one_hot_encode_season) <- c('Spring', 'Summer', 'Fall')
+bike_data <- cbind(bike_data, one_hot_encode_season)
+
+# Filter the dataset with the new dates
+bike_data_train <- bike_data[bike_data$dteday >= as.Date("2011-01-01") & bike_data$dteday <=  as.Date("2012-05-31"), ]
+bike_data_test <- bike_data[bike_data$dteday >= as.Date("2012-06-01") & bike_data$dteday <=  as.Date("2012-12-31"), ]
+
+# Response variables
+y_train <- bike_data_train$log_cnt
+y_test <- bike_data_test$log_cnt
+
+# Spline basis for 'hour' with 10 degrees of freedom for the training data
+spline_basis_train <- ns(bike_data_train$hour, df = 10, intercept = FALSE)
+
+# Extract the knots
+knots <- attr(spline_basis_train, "knots")
+
+# Intercept column to the design matrix
+intercept_train <- rep(1, nrow(bike_data_train))
+
+# Combine the design matrix with the intercept, the spline basis and the other features 
+x_train <- cbind(intercept_train, spline_basis_train, bike_data_train[, c("yr", "holiday", "workingday", "temp", "atemp", "hum", "windspeed","cloudy", "light rain", "heavy rain","Mon", "Tue", "Wed", "Thu", "Fri", "Sat","Spring", "Summer", "Fall")])
+
+# Create a matrix for not having troubles when doing the Lasso model
+x_train <- as.matrix(x_train)
+
+# Spline basis for the testing data using the same knots as in the training data
+spline_basis_test <- ns(bike_data_test$hour, df = 10, knots = knots, intercept = FALSE)
+
+# Intercept column to the design matrix
+intercept_test <- rep(1, nrow(bike_data_test))
+
+# Combine the design matrix with the intercept, the spline basis and the other features
+x_test <- cbind(intercept_test, spline_basis_test, bike_data_test[, c("yr", "holiday", "workingday", "temp", "atemp", "hum", "windspeed","cloudy", "light rain", "heavy rain","Mon", "Tue", "Wed", "Thu", "Fri", "Sat","Spring", "Summer", "Fall")])
+
+# Matrix to use in the Lasso
+x_test <- as.matrix(x_test)
+
+# To have a better looking Lasso Path
+colnames(x_train)[2:11] <- paste0("hour_spline_", 1:10)
+colnames(x_test)[2:11] <- paste0("hour_spline_", 1:10)
+
+# Fit a Lasso model (Lasso, alpha =1)
+lasso_model <- cv.glmnet(x_train, y_train, alpha = 1, nfolds = 10, standardize = TRUE)
+
+# One-standard deviation rule to select lambda
+optimal_lambda <- lasso_model$lambda.1se
+
+# Predict
+y_train_pred <- predict(lasso_model, s = optimal_lambda, newx = x_train)
+y_test_pred <- predict(lasso_model, s = optimal_lambda, newx = x_test)
+
+# Calculate RMSE's for training and testing sets
+rmse_train <- sqrt(mean((y_train - y_train_pred)^2))
+rmse_test <- sqrt(mean((y_test - y_test_pred)^2))
+
+# Print the RMSE's values
+print(paste("The RMSE on Train Data using LASSO:", rmse_train))
+print(paste("The RMSE on Test Data using LASSO:", rmse_test))
+```
+
+#### 👾 Problem 3.2
+
+::: boxed-text
+Which three features in Problem 3.1 seem to be the most important?
+:::
+
+To explore which variables are most important we re-estimate the model in Problem 3.1 without cross-validation (using `glmnet()`). Then we apply the `plot()` function to the object returned by `glmnet()` using the arguments `xvar="lambda` and properly labeling the data, showing the Lasso path ([Source link on how to use randomcoloR](https://stackoverflow.com/questions/15282580/how-to-generate-a-number-of-most-distinctive-colors-in-r)):
+
+```{r}
+# Lasso model without cross-validation (Lasso, alpha =1)
+lasso_model_full <- glmnet(x_train, y_train, alpha = 1, standardize = TRUE)
+
+# Variable names
+variable_names <- colnames(x_train)
+
+# Package to generate various different random colors
+if (!require(randomcoloR)) install.packages("randomcoloR")
+suppressMessages(library(randomcoloR))
+
+# Margins
+par(mar = c(5, 4, 4, 8) + 0.1)
+
+# Different colors for each variable
+colors <- distinctColorPalette(length(variable_names))
+
+# Plot
+plot(lasso_model_full, xvar = "lambda", label = FALSE, cex.lab = 0.7, cex.axis = 0.8, col = colors)
+title("Lasso path", line = 2.5)
+legend("topright", inset = c(-0.16, 0), legend = variable_names, col = colors, lty = 1, cex = 0.42, xpd = TRUE)
+```
+
+As shown in the Lasso path, the three most important variables are the temperature, the hour and the workingday.
+
+#### 👾 Problem 3.3
+
+::: boxed-text
+Carry out a residual analysis in Problem 3.1 for the training data. What can you say about the assumption of independent residuals? Repeat the same for the test data.
+:::
+
+The following code calculate the residuals and plot the ACF for both, the training and the test data, so we can analyze the assumption of independent residuals:
+
+```{r}
+# Calculate residuals for the training data
+residuals_train <- y_train - y_train_pred
+
+# Plot ACF on training data
+acf(residuals_train, main = "ACF of Training Residuals")
+
+# Calculate residuals for the testing data
+residuals_test <- y_test - y_test_pred
+
+# Plot ACF on testing data
+acf(residuals_test, main = "ACF of Testing Residuals")
+```
+
+The ACF plots indicate that the assumption of independent residuals is violated for the training and testing data. The presence of significant autocorrelations suggests that the model may not have captured all relevant patterns in the data.
+
+## 4. Regularised time series regression for bike rental data
+
+#### 👾 Problem 4.1
+
+::: boxed-text
+Plot a time series plot of the response in the original scale (i.e. counts and not log-counts) for the last week of the test data (last $24\times 7$ observations). In the same figure, plot a time series plot of the fitted values (in the original scale) from Problem 3.1. Comment on the fit.
+:::
+
+The next code keeps the last week of data for the response variable as well as the Lasso fitted values in the original scale. Then it plots both in the same chart:
+
+```{r}
+# Last week of test data
+last_week_data <- tail(bike_data_test, 24 * 7)
+
+# To original scale
+cnt_pred <- exp(y_test_pred)  
+
+# Fitted values for the last week
+last_week_fitted <- tail(cnt_pred, 24 * 7)
+
+# Time index for the last week
+time_index <- 1:(24 * 7)
+
+# Plot
+plot(time_index, last_week_data$cnt, type = 'l', col = 'cornflowerblue', lwd = 2,
+     xlab = 'Time (Hours)', ylab = 'Bike Rental Counts',
+     main = 'Bike Rental Counts: Actual vs Fitted for Last Week of Test Data',cex.main = 0.8)
+
+# Add the fitted values to the plot
+lines(time_index, last_week_fitted, col = 'lightcoral', lwd = 2, lty = 2)
+
+# Legend
+legend("topleft", legend = c("Actual", "Fitted"), col = c("cornflowerblue", "lightcoral"),
+       lty = c(1, 2), lwd = 2, cex = 0.5)
+```
+
+As shown in the graph, compared to the real data, the Lasso prediction overestimates the number of bike rentals in a vast amount of the last week data.
+
+#### 👾 Problem 4.2
+
+::: boxed-text
+Add time series effects to your model by including some lagged values of the response as features. Use the first four hourly lags of `log_cnt` plus the 24th hourly lag as features, in addition to all other features in Problem 3.1. Fit the model using an L1 regularisation and find the optimal $\lambda$ by applying the one-standard deviation rule when cross-validating the training data using 10 folds. Compute the RMSE (using the optimal $\lambda$) for the training and test data and compare to Problem 3.1. Are the residuals from this new model more adequate?
+:::
+
+The next code add the first four hourly lags of `log_cnt` plus the 24th hourly lag as features using the library dplyr and store the new dataset in `bike_nata_new`. Then it fits the model using a Lasso regularisation and finds the optimal $\lambda$ by applying the one-standard deviation rule when cross-validating the training data using 10 folds. Moreover it computes the RMSE using that optimal lambda, for the training and test data and finally plots the ACF for both, training and test data:
+
+```{r}
+
+# Load packages
+if (!require(dplyr)) install.packages("dplyr")
+suppressMessages(library(dplyr))
+
+# Create lagged features using dplyr
+bike_data_new <- bike_data %>%
+  mutate(log_cnt_lag1 = lag(log_cnt, 1),
+         log_cnt_lag2 = lag(log_cnt, 2),
+         log_cnt_lag3 = lag(log_cnt, 3),
+         log_cnt_lag4 = lag(log_cnt, 4),
+         log_cnt_lag24 = lag(log_cnt, 24))
+
+# Remove NA's caused by lagging
+bike_data_new <- na.omit(bike_data_new)
+bike_data_new$dteday <- as.Date(bike_data_new$dteday, format = "%Y-%m-%d")
+
+# Split data into training and testing sets as the problem says
+bike_data_train_new <- bike_data_new[bike_data_new$dteday >= as.Date("2011-01-01") & bike_data_new$dteday <= as.Date("2012-05-31"), ]
+bike_data_test_new <- bike_data_new[bike_data_new$dteday >= as.Date("2012-06-01") & bike_data_new$dteday <= as.Date("2012-12-31"), ]
+
+# Response variables
+y_train <- bike_data_train_new$log_cnt
+y_test <- bike_data_test_new$log_cnt
+
+# Intercepts
+intercept_train_new <- rep(1, nrow(bike_data_train_new))
+intercept_test_new <- rep(1, nrow(bike_data_test_new))
+
+# Splines
+
+spline_basis_train_new <- ns(bike_data_train_new$hour, df = 10, intercept = FALSE)
+knots_new <- attr(spline_basis_train_new, "knots")
+spline_basis_test_new <- ns(bike_data_test_new$hour, df = 10, knots = knots_new, intercept = FALSE)
+
+# Combine the design matrix with the intercept, the spline basis and the other features
+x_train_cb <- cbind(intercept_train_new, spline_basis_train_new, bike_data_train_new[, c("yr", "holiday", "workingday", "temp", "atemp", "hum", "windspeed", "cloudy", "light rain", "heavy rain","Mon", "Tue", "Wed", "Thu", "Fri", "Sat","Spring", "Summer", "Fall", "log_cnt_lag1", "log_cnt_lag2", "log_cnt_lag3", "log_cnt_lag4", "log_cnt_lag24")])
+
+# Create a matrix for not having troubles when doing the Lasso model
+x_train <- as.matrix(x_train_cb)
+
+# Combine the design matrix with the intercept, the spline basis and the other features
+x_test_cb <- cbind(intercept_test_new, spline_basis_test_new, bike_data_test_new[, c("yr", "holiday", "workingday", "temp", "atemp", "hum", "windspeed", "cloudy", "light rain", "heavy rain", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Spring", "Summer", "Fall", "log_cnt_lag1", "log_cnt_lag2", "log_cnt_lag3", "log_cnt_lag4", "log_cnt_lag24")])
+
+# Create a matrix for not having troubles when doing the Lasso model
+x_test <- as.matrix(x_test_cb)
+
+# Lasso model (alpha =1)
+cv_lasso <- cv.glmnet(x_train, y_train, alpha = 1, nfolds = 10, standardize = TRUE)
+
+# Extract the optimal lambda using the one-standard deviation rule
+optimal_lambda <- cv_lasso$lambda.1se
+
+# Predict
+y_train_pred <- predict(cv_lasso, s = optimal_lambda, newx = x_train)
+y_test_pred <- predict(cv_lasso, s = optimal_lambda, newx = x_test)
+
+# Calculate RMSE's
+rmse_train <- sqrt(mean((y_train - y_train_pred)^2))
+rmse_test <- sqrt(mean((y_test - y_test_pred)^2))
+print(paste("The RMSE on Train Data:", rmse_train))
+print(paste("The RMSE on Test:", rmse_test))
+
+# Residual's vector to plot
+residuals_train <- y_train - y_train_pred
+residuals_test <- y_test - y_test_pred
+
+# ACF of the residuals for the training data
+acf(residuals_train, main = "ACF of Training Residuals (Model with Lagged Features)", cex.main =0.6)
+
+# ACF of the residuals for the testing data
+acf(residuals_test, main = "ACF of Testing Residuals (Model with Lagged Features)",cex.main=0.6)
+```
+
+The RMSE for the model including some lagged values of the response as features is lower than the one that does not include them. This is due to the model’s enhanced ability to capture the temporal dependencies, seasonal patterns, and autocorrelations inherent in time series data, that's also why, as shown in the ACF graphs, the residuals from this new model are more adequate than in 3.1.
+
+#### 👾 Problem 4.3
+
+::: boxed-text
+Add the predictions from Problem 4.2 to the figure you created in Problem 4.1. Did the predictions improve by adding lags of the response variable?
+:::
+
+The next code plots the response variable as well as the Lasso fitted values and the Lasso fitted values with lag in the original scale:
+
+```{r}
+# Time series plot
+plot(time_index, last_week_data$cnt, type = 'l', col = 'cornflowerblue', lwd = 2,
+     xlab = 'Time (Hours)', ylab = 'Bike Rental Counts',
+     main = 'Bike Rental Counts: Actual vs Fitted for Last Week of Test Data', cex.main = 0.8)
+
+# Add the fitted values to the plot
+lines(time_index, last_week_fitted, col = 'lightcoral', lwd = 2, lty = 2)
+
+
+# Predict the fitted values using the Lasso model with lagged features
+log_cnt_pred_lags <- y_test_pred 
+cnt_pred_lags <- exp(log_cnt_pred_lags) 
+
+# Extract the fitted values for the last week from the lagged model
+last_week_fitted_lags <- tail(cnt_pred_lags, 24 * 7)
+
+# Add the new fitted values 
+lines(time_index, last_week_fitted_lags, col = 'darkgreen', lwd = 2, lty = 3)
+
+# Legend
+legend("topleft", legend = c("Actual", "Fitted (Original)", "Fitted (Lagged Features)"), col = c("cornflowerblue", "lightcoral", "darkgreen"), lty = c(1, 2, 3), lwd= 1.5, cex=0.5)
+```
+
+As shown in the graph, adding lags of the response variable result in a better fit to the real data than when we add no lags.
+
+## 5. Regression trees for bike rental data
+
+#### 👾 Problem 5.1
+
+::: boxed-text
+Using the training dataset from Problem 4.2 (that also includes lagged values of the response as features), fit a regression tree using the `tree` package. Experiment with the settings to see how changing them affects the results.
+:::
+
+The next code uses the training dataset from problem 4.2 to fit a regression tree using the `tree` package. In commented lines, we can see which settings we can change in order to affect the results of the tree:
+
+```{r}
+# Load packages
+suppressMessages(library(tree))
+
+# Design data
+train_ds <- data.frame(y_train, x_train_cb)
+test_ds <- data.frame(y_test, x_test_cb)
+colnames(train_ds)[1] <- "log_cnt"
+colnames(test_ds)[1] <- "log_cnt"
+names(train_ds)[names(train_ds) == "intercept_train_new"] <- "intercept"
+names(test_ds)[names(test_ds) == "intercept_test_new"] <- "intercept"
+
+# Train model and fit
+library(tree)
+arbol <- tree(log_cnt ~ ., data = train_ds)
+
+# These lines are used to change the parameters of the tree if I want to:
+#arbol <- tree(log_cnt ~ ., data = train_ds, control = tree.control(nobs = nrow(train_ds), mincut = 2, minsize = 5, mindev = 0.01))
+
+#summary(arbol)
+y_hat_test <- predict(arbol, newdata = test_ds)
+# Predict on the test data
+cnt_pred_tree <- exp(y_hat_test)  # Transform back to original scale
+```
+
+#### 👾 Problem 5.2
+
+::: boxed-text
+Plot the tree structure in Problem 5.1.
+:::
+
+The next code plots the tree that we created in problem 5.1:
+
+```{r}
+# Plot the tree
+plot(arbol)
+text(arbol, pretty = 0, cex = 0.38)
+
+# Add a title
+title(main = "Regression Tree for Bike Rentals (with Lagged Features)", cex.main = 0.50)
+```
+
+#### 👾 Problem 5.3
+
+::: boxed-text
+Add the predictions from Problem 5.1 to the figure you created in Problem 4.3. Comment on the fit of the regression tree compared to that of the semi-parametric spline approach.
+:::
+
+The next code adds the prediction of the tree to the problem's 4.3 chart in order to compare which model fits best:
+
+```{r}
+# Create the time series plot
+plot(time_index, last_week_data$cnt, type = 'l', col = 'cornflowerblue', lwd = 2,
+     xlab = 'Time (Hours)', ylab = 'Bike Rental Counts', main = 'Bike Rental Counts: Actual vs Fitted for Last Week of Test Data', cex.main = 0.8)
+
+# Add the fitted values from the 4.1 model
+lines(time_index, last_week_fitted, col = 'lightcoral', lwd = 2, lty = 2)
+
+# Add the fitted values from the model with lagged features
+lines(time_index, last_week_fitted_lags, col = 'darkgreen', lwd = 2, lty = 3)
+
+# Add the tree model
+last_week_fitted_tree <- tail(cnt_pred_tree, 24 * 7)
+lines(time_index, last_week_fitted_tree, col = 'purple', lwd = 2, lty = 4)
+
+# Legend
+legend("topleft", legend = c("Actual", "Fitted (Original)", "Fitted (Lagged Features)", "Fitted (Regression Tree)"),
+       col = c("cornflowerblue", "lightcoral", "darkgreen", "purple"), lty = c(1, 2, 3, 4), lwd = 2, cex = 0.5)
+```
+
+As seen in the chart, the regression tree provides a decent fit but might be less smooth and somewhat more volatile compared to the semi-parametric spline approach with lagged features, which seems to better capture the underlying structure of the data.
+
+## 6. Logistic regression for classifying spam emails
+
+#### 👾 Problem 6.1
+
+::: boxed-text
+Reconstruct the confusion matrix for the test data without using the `confusionMatrix()` function.
+:::
+
+This part of the code uses the `confusionMatrix()` function, in order to compare it with the one that we will make without using this package:
+
+```{r}
+rm(list=ls()) # Remove variables 
+cat("\014") # Clean workspace
+load(file = '/Users/quant/Desktop/Data Science/Primer semestre/Machine Learning - Spring 2024/Computer Lab 1/spam_ham_emails.RData')
+Spam_ham_emails[, -1] <- scale(Spam_ham_emails[, -1])
+Spam_ham_emails['spam'] <- as.factor(Spam_ham_emails['spam'] == 1) # Changing from 1->TRUE, 0->FALSE
+levels(Spam_ham_emails$spam) <- c("not spam", "spam")
+#head(Spam_ham_emails)
+#str(Spam_ham_emails)
+#cat("Percentage of spam:", 100*mean(Spam_ham_emails$spam == "spam"))
+suppressMessages(library(caret))
+train_obs <- createDataPartition(y = Spam_ham_emails$spam, p = .75, list = FALSE)
+train <- Spam_ham_emails[train_obs, ]
+test <- Spam_ham_emails[-train_obs, ]
+# Confirm both training and test are balanced with respect to spam emails
+cat("Percentage of training data consisting of spam emails:", 
+              100*mean(train$spam == "spam"))
+cat("Percentage of test data consisting of spam emails:", 
+              100*mean(test$spam == "spam"))
+glm_fit <- glm(spam ~ ., family = binomial, data = train)
+y_prob_hat_test <- predict(glm_fit, newdata = test, type = "response")
+threshold <- 0.5 # Predict spam if probability > threshold
+y_hat_test <- as.factor(y_prob_hat_test > threshold)
+levels(y_hat_test) <- c("not spam", "spam")
+confusionMatrix(data = y_hat_test, test$spam, positive = "spam")
+```
+
+Now we create the confussion matrix by ourselves, calculating the true positives, false positives, true negatives and false negatives and putting them together on a matrix:
+
+```{r}
+# True positives (TP): Predicted spam and actual spam
+TP <- sum(y_hat_test == "spam" & test$spam == "spam")
+
+# False positives (FP): Predicted spam but actual not spam
+FP <- sum(y_hat_test == "spam" & test$spam == "not spam")
+
+# True negatives (TN): Predicted not spam and actual not spam
+TN <- sum(y_hat_test == "not spam" & test$spam == "not spam")
+
+# False negatives (FN): Predicted not spam but actual spam
+FN <- sum(y_hat_test == "not spam" & test$spam == "spam")
+
+# Construct the confusion matrix
+confusion_matrix <- matrix(c(TN, FN, FP, TP), nrow = 2, byrow = TRUE,dimnames = list('Reference' = c("not spam", "spam"),'Prediction' = c("not spam", "spam")))
+
+# Print the confusion matrix
+print(confusion_matrix)
+```
+
+#### 👾 Problem 6.2
+
+::: boxed-text
+Compute the accuracy, precision, sensitivity (recall), and specificity without using the `confusionMatrix()` function. Explain these four concepts in the context of the spam filter.
+:::
+
+The next code uses the true positives, false positives, true negatives and false negatives obtained in problem 6.1 to calculate the measures asked in problem 6.2:
+
+```{r}
+# Calculate the metrics
+accuracy <- (TP + TN) / (TP + TN + FP + FN)
+precision <- TP / (TP + FP)
+sensitivity <- TP / (TP + FN)
+specificity <- TN / (TN + FP)
+
+# Print the metrics
+print(paste("Accuracy:", accuracy))
+print(paste("Precision:", precision))
+print(paste("Sensitivity:", sensitivity))
+print(paste("Specificity:", specificity))
+```
+
+Accuracy tells us how often the spam filter correctly classifies emails, whether as spam or not spam, in this case the accuracy is 90%, so the filter is a good classifier.
+
+```{=tex}
+\begin{align*}
+\text{Accuracy} = \frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}}
+\end{align*}
+```
+Precision measures how reliable the spam predictions are. Here, 88% of the emails classified as spam are indeed spam, with fewer false alarms (not spam emails mistakenly marked as spam).
+
+```{=tex}
+\begin{align*}
+\text{Precision} &= \frac{\text{TP}}{\text{TP} + \text{FP}} \\
+\end{align*}
+```
+Sensitivity tells us how good the filter is at detecting spam. Here, the filter catches 85% of the spam emails.
+
+```{=tex}
+\begin{align*}
+\text{Sensitivity} &= \frac{\text{TP}}{\text{TP} + \text{FN}} \\
+\end{align*}
+```
+Specificity measures how good the filter is at correctly identifying not spam emails. Here, the filter does not mark the 93% of legitimate emails as spam.
+
+```{=tex}
+\begin{align*}
+\text{Specificity} &= \frac{\text{TN}}{\text{TN} + \text{FP}}
+\end{align*}
+```
+#### 👾 Problem 6.3
+
+::: boxed-text
+Compute the ROC curve using the `pROC()` package. Explain in detail what the ROC curve shows.
+:::
+
+The next code plots the ROC curve, that is, the true positive rate (TPR) against the false positive rate (FPR) at various thresholds:
+
+```{r}
+# Package
+if (!require(pROC)) install.packages("pROC")
+suppressMessages(library(pROC))
+
+# Calculate the ROC curve
+roc_curve <- roc(test$spam, y_prob_hat_test)
+par(pty = 's')
+# Plot
+plot(roc_curve, main = "ROC Curve for Spam Filter", col = "cornflowerblue", lwd = 2, print.auc = TRUE)
+```
+
+The ROC plots the true positive rate (TPR) against the false positive rate (FPR) at various thresholds. It is helpful to understand the trade-offs between both of them. By examining the ROC curve, one can choose a threshold that balances sensitivity and specificity according to the specific needs of the modeler, in this case, as we want to minimize false negatives (missing spam e-mails), we can choose a threshold that gives a higher sensitivity.
+
+## 7. Decision trees for classifying spam emails
+
+#### 👾 Problem 7.1
+
+::: boxed-text
+Using the training dataset from Problem 6, fit a decision tree (classification tree) using the `tree` package with the default settings. How does this classifier perform on the test dataset compared to the logistic classifier in Problem 6?
+:::
+
+The next code fits a decision tree using the `tree` package with the default settings using the training dataset from problem 6 and calculates its accuracy, precision, sensitivity and specificity in order to compare them against the logistic regression classifier:
+
+```{r}
+# Decision tree model using the training data
+tree_fit <- tree(spam ~ ., data = train)
+
+# Print the summary
+#summary(tree_fit)
+
+# Predict on the test dataset, we use class as a classification problem parameter identifier
+tree_pred <- predict(tree_fit, newdata = test, type = "class")
+
+# Confusion matrix for the decision tree
+tree_confusion_matrix <- table(Predicted = tree_pred, Actual = test$spam)
+print(tree_confusion_matrix)
+
+# Extract confusion matrix components
+TN_tree <- tree_confusion_matrix[1, 1]
+FP_tree <- tree_confusion_matrix[1, 2]
+FN_tree <- tree_confusion_matrix[2, 1]
+TP_tree <- tree_confusion_matrix[2, 2]
+
+# Calculate performance metrics
+accuracy_tree <- (TP_tree + TN_tree) / sum(tree_confusion_matrix)
+precision_tree <- TP_tree / (TP_tree + FP_tree)
+sensitivity_tree <- TP_tree / (TP_tree + FN_tree)
+specificity_tree <- TN_tree / (TN_tree + FP_tree)
+
+# Print the metrics
+print(paste("Accuracy:", accuracy_tree))
+print(paste("Precision:", precision_tree))
+print(paste("Sensitivity:", sensitivity_tree))
+print(paste("Specificity:", specificity_tree))
+```
+
+Compared to the logistic regression classifier, the only metric that slightly improves when using a tree, is the sensitivity, which means that the tree is, in overall, better at detecting true positives than the logistic regression classifier.
+
+#### 👾 Problem 7.2
+
+::: boxed-text
+Plot the tree structure in Problem 7.1.
+:::
+
+The next code plots the tree structure of problem 7.1:
+
+```{r}
+# Adjust margins using mai (in inches)
+par(mai = c(0.1, 0.1, 0.1, 0.1))  # Bottom, left, top, right
+
+# Plot the decision tree with adjusted margins
+plot(tree_fit, uniform = TRUE, margin = 0.1, cex.main = 0.8, branch = 2)
+title(main = "Decision Tree for Spam Classification", cex.main = 0.8)
+
+# Labels
+text(tree_fit, use.n = TRUE, all = TRUE, cex = 0.37, pretty = 0)
+
+```
+
+## 8. k-nearest neighbour for classifying spam emails
+
+#### 👾 Problem 8.1
+
+::: boxed-text
+Without using any package, fit a k-nearest neighbour classifier to the training dataset from Problem 6. Choose the value of $k$ that minimises some suitable error function for the test data.
+:::
+
+The next code fits a k-nearest neighbour classifier to the training dataset from problem 6, the value of $k$ is chosen among 15 different $k$'s minimising the MSE as an error function:
+
+```{r}
+# Euclidean distance function
+euclidean_distance = function(x1, x2)
+  #  We check that they have the same number of observation
+  {if(length(x1) == length(x2)){
+    sqrt(sum((x1-x2)^2))  
+  } else{
+    stop('Vectors must be of the same length')
+  }}
+
+# k-NN function
+knn <- function(train_data, train_labels, test_data, k) 
+  {predictions <- rep(NA, nrow(test_data))
+  for (i in 1:nrow(test_data)) {
+    distances <- apply(train_data, 1, euclidean_distance, x2 = test_data[i, ])
+    neighbor_indices <- order(distances)[1:k]
+    neighbor_labels <- train_labels[neighbor_indices]
+    predictions[i] <- ifelse(mean(neighbor_labels == "spam") > 0.5, "spam", "not spam")} # If more than 50% of the neighbors is labeled as spam, then label the prediction as spam
+  return(factor(predictions, levels = levels(train_labels)))}
+
+# Standardizing the predictors
+train_data <- scale(train[, -1])
+test_data <- scale(test[, -1])
+train_labels <- train$spam
+test_labels <- test$spam
+
+# Initialize variables
+k_values <- 1:15 # Range of k values to try
+mse_values <- numeric(length(k_values)) 
+
+# Loop
+for (i in seq_along(k_values)) 
+  {k <- k_values[i]
+  
+  # Predict using k-NN
+  predictions <- knn(train_data, train_labels, test_data, k)
+  
+  # Convert predictions to numeric for MSE calculation
+  predictions_numeric <- as.numeric(predictions) - 1
+  
+  # Calculate MSE
+  mse_values[i] <- mean((predictions_numeric - (as.numeric(test_labels) - 1))^2)}
+
+# Find the optimal k that minimizes MSE
+optimal_k <- k_values[which.min(mse_values)]
+print(paste("The k that minimises the MSE is:", optimal_k))
+
+# Evaluate the model with optimal k
+final_predictions <- knn(train_data, train_labels, test_data, k = optimal_k)
+```
+
+#### 👾 Problem 8.2
+
+::: boxed-text
+How does the classifier in Problem 8.1 perform on the test dataset compared to the logistic classifier in Problem 6 and the decision tree classifier in Problem 7?
+:::
+
+The next code calculates and prints the classifier evaluation metrics in order to compare it against problems 6.1 and 7.1:
+
+```{r}
+# Confusion matrix
+TP_knn <- sum(final_predictions == "spam" & test_labels == "spam")
+TN_knn <- sum(final_predictions == "not spam" & test_labels == "not spam")
+FP_knn <- sum(final_predictions == "spam" & test_labels == "not spam")
+FN_knn <- sum(final_predictions == "not spam" & test_labels == "spam")
+
+# Calculate performance metrics
+accuracy_knn <- (TP_knn + TN_knn) / (TP_knn + TN_knn + FP_knn + FN_knn)
+precision_knn <- TP_knn / (TP_knn + FP_knn)
+sensitivity_knn <- TP_knn / (TP_knn + FN_knn)
+specificity_knn <- TN_knn / (TN_knn + FP_knn)
+
+# Print the metrics
+print(paste("Accuracy:", accuracy_knn))
+print(paste("Precision:", precision_knn))
+print(paste("Sensitivity:", sensitivity_knn))
+print(paste("Specificity:", specificity_knn))
+```
+
+The k-nn classifier has a better performance in all the metrics compared to the logistic regression classifier meaning that, in overall, the k-nn is a better classifier. Compared to the tree, the k-nn classifier improves all the metrics except for the sensitivity, which means that, in overall, the tree is better at detecting true positives than the k-nn classifier.
